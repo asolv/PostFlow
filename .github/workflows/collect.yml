@@ -21,6 +21,6 @@ jobs:
           BASE_URL: ${{ secrets.RENDER_BASE_URL }}
         run: |
           curl -sS -X POST \
-            -H "X-Job-Token: ${JOB_TOKEN}" \
+            -H "x_job_token: ${JOB_TOKEN}" \
             --retry 5 --retry-all-errors --max-time 120 \
             "${BASE_URL}/api/v1/trends/realtime/store?geo=KR&hl=ko&hours=4"
