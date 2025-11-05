@@ -4,7 +4,7 @@ import requests
 
 from app.core.config import settings
 
-SERP_ENDPOINT = "https://serpapi.com/search"  # engine=google_trends_trending_now
+SERP_ENDPOINT = "https://serpapi.com/search"  # engine=google_trends_trending_now 
 
 def _pick_trending_array(data: Dict[str, Any]) -> List[Dict[str, Any]]:
 
