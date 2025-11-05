@@ -1,0 +1,21 @@
+﻿name: collect-trends-via-api
+
+on:
+  schedule:
+    - cron: "0 */4 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  call_api:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake server (optional)
+        run: |
+          curl -sS --max-time 20 "${{ secrets.RENDER_BASE_URL }}/health" || true
+
+      - name: Trigger store endpoint (with retries)
+        run: |
+          curl -sS -X POST \
+            -H "X-Job-Token: ${{ secrets.JOB_TOKEN }}" \
+            --retry 5 --retry-all-errors --max-time 120 \
+            "${{ secrets.RENDER_BASE_URL }}/api/v1/trends/realtime/store?geo=KR&hl=ko&hours=4"
