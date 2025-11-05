@@ -2,7 +2,9 @@
 
 on:
   schedule:
-    - cron: "0 */4 * * *"
+    # KST: 00:20 / 04:20 / 08:20 / 12:20 / 16:20 / 20:20
+    # UTC: 15:20 / 19:20 / 23:20 / 03:20 / 07:20 / 11:20
+    - cron: "20 15/4 * * *"
   workflow_dispatch: {}
 
 jobs:
@@ -14,8 +16,11 @@ jobs:
           curl -sS --max-time 20 "${{ secrets.RENDER_BASE_URL }}/health" || true
 
       - name: Trigger store endpoint (with retries)
+        env:
+          JOB_TOKEN: ${{ secrets.JOB_TOKEN }}
+          BASE_URL: ${{ secrets.RENDER_BASE_URL }}
         run: |
           curl -sS -X POST \
-            -H "X-Job-Token: ${{ secrets.JOB_TOKEN }}" \
+            -H "X-Job-Token: ${JOB_TOKEN}" \
             --retry 5 --retry-all-errors --max-time 120 \
-            "${{ secrets.RENDER_BASE_URL }}/api/v1/trends/realtime/store?geo=KR&hl=ko&hours=4"
+            "${BASE_URL}/api/v1/trends/realtime/store?geo=KR&hl=ko&hours=4"
