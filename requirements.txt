@@ -5,3 +5,5 @@ pydantic
 pydantic-settings
 psycopg[binary]
 psycopg-pool
+openai
+orjson
