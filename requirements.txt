@@ -7,3 +7,5 @@ psycopg[binary]
 psycopg-pool
 openai
 orjson
+beautifulsoup4
+lxml

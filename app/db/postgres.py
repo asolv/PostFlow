@@ -35,6 +35,22 @@ CREATE TABLE IF NOT EXISTS trending_keywords (
 -- 인덱스
 CREATE INDEX IF NOT EXISTS idx_trending_keywords_collected_at ON trending_keywords (collected_at DESC);
 CREATE INDEX IF NOT EXISTS idx_trending_keywords_title        ON trending_keywords (title);
+
+-- 네이버 랭킹뉴스 테이블
+CREATE TABLE IF NOT EXISTS naver_ranking_news (
+  id           BIGSERIAL PRIMARY KEY,
+  collected_at TIMESTAMPTZ NOT NULL,
+  press        TEXT        NOT NULL,   -- 언론사 이름
+  category     TEXT,                   -- 섹션(정치/경제/사회 등), 없으면 NULL
+  rank         INT         NOT NULL,   -- 언론사별 랭킹 순위
+  title        TEXT        NOT NULL,   -- 기사 제목
+  link         TEXT        NOT NULL,   -- 기사 링크
+  raw_json     JSONB                   -- 원본 전체 JSON
+);
+
+CREATE INDEX IF NOT EXISTS idx_naver_ranking_collected_at ON naver_ranking_news (collected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_naver_ranking_press        ON naver_ranking_news (press);
+CREATE INDEX IF NOT EXISTS idx_naver_ranking_title        ON naver_ranking_news (title);
 """
 
 def init_pool():
@@ -195,3 +211,69 @@ def get_top_trending_keyword(category: Optional[str] = None) -> Optional[Dict[st
             row = cur.fetchone()
 
     return dict(row) if row else None
+
+# ---------------------------
+# 신규: 네이버 랭킹뉴스 저장
+# ---------------------------
+
+def save_naver_ranking_news(items: Iterable[Dict[str, Any]]) -> int:
+    """
+    네이버 랭킹뉴스 목록을 naver_ranking_news 테이블에 저장.
+    - 제목(title) 기준으로 UNIQUE.
+    - 이미 같은 제목이 있으면 500 에러 대신 그냥 무시(삽입 안 함).
+    """
+    if pool is None:
+        raise RuntimeError("Pool not initialized")
+
+    now = datetime.now(timezone.utc)
+    rows = []
+
+    for it in items:
+        press = it.get("press")
+        title = it.get("title")
+        link = it.get("link")
+        rank = it.get("rank")
+        category = it.get("category")
+
+        if not press or not title or not link or rank is None:
+            continue
+
+        try:
+            rank_int = int(rank)
+        except Exception:
+            continue
+
+        rows.append(
+            (now, press, category, rank_int, title, link, Json(it))
+        )
+
+    if not rows:
+        return 0
+
+    sql = """
+    INSERT INTO naver_ranking_news (
+      collected_at,
+      press,
+      category,
+      rank,
+      title,
+      link,
+      raw_json
+    )
+    VALUES (%s,%s,%s,%s,%s,%s,%s)
+    ON CONFLICT (title) DO NOTHING;
+    """
+    # 만약 "머지"처럼 최신 rank/시간으로 갱신하고 싶으면 아래처럼도 가능:
+    # ON CONFLICT (title) DO UPDATE
+    #   SET rank = EXCLUDED.rank,
+    #       collected_at = EXCLUDED.collected_at,
+    #       link = EXCLUDED.link,
+    #       category = EXCLUDED.category,
+    #       raw_json = EXCLUDED.raw_json;
+
+    with pool.connection() as conn:
+        with conn.cursor() as cur:
+            cur.executemany(sql, rows)
+        conn.commit()
+
+    return len(rows)

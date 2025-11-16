@@ -4,6 +4,9 @@ from app.db.postgres import get_top_trending_keyword
 from app.services.llm_service import generate_items_from_keywords
 from app.services.rss_service import build_rss_xml
 
+from app.schemas.naver_ranking import NaverRankingCollectResult
+from app.services.naver_ranking_service import collect_and_save_naver_ranking
+
 router = APIRouter(prefix="/rss", tags=["rss"])
 
 
@@ -28,3 +31,12 @@ def generate_rss(
 
     # 4) XML 반환
     return Response(content=xml_data, media_type="application/rss+xml; charset=utf-8")
+
+@router.post("/naver/ranking/collect", response_model=NaverRankingCollectResult)
+def collect_naver_ranking_news() -> NaverRankingCollectResult:
+    """
+    네이버 랭킹뉴스(언론사별 많이 본 뉴스)를 스크래핑해서 DB에 저장하고,
+    저장된 항목들을 그대로 반환하는 API.
+    """
+    items = collect_and_save_naver_ranking()
+    return NaverRankingCollectResult(count=len(items), items=items)
