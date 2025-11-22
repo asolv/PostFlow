@@ -1,3 +1,4 @@
+# app/services/naver_ranking_service.py
 from __future__ import annotations
 
 from typing import List, Optional, Set
@@ -8,6 +9,7 @@ from bs4 import BeautifulSoup
 
 from app.schemas.naver_ranking import NaverRankingNewsItem
 from app.db.postgres import save_naver_ranking_news
+from app.services.llm_service import categorize_news_titles_by_gpt
 
 # 네이버 랭킹뉴스(많이 본 뉴스) 페이지
 NAVER_RANKING_URL = "https://news.naver.com/main/ranking/popularDay.naver"
@@ -131,35 +133,64 @@ def _dedup_by_title(items: List[NaverRankingNewsItem]) -> List[NaverRankingNewsI
 def save_naver_ranking_to_db(items: List[NaverRankingNewsItem]) -> int:
     """
     파싱된 랭킹뉴스를 PostgreSQL에 저장.
-    제목 기준으로 in-memory 중복 제거 후 저장.
+    1) rank == 1만 대상으로 필터
+    2) 제목 기준으로 in-memory 중복 제거
+    3) category가 비어 있는 항목들에 대해 GPT로 카테고리 분류
+    4) DB 저장
     """
     if not items:
         return 0
 
+    # 🔹 1위 기사만 남기기
+    items = [it for it in items if it.rank == 1]
+    if not items:
+        return 0
+
+    # 2) 제목 기준 dedup
     items = _dedup_by_title(items)
 
-    return save_naver_ranking_news(
-        [
-            {
-                "press": it.press,
-                "category": it.category,
-                "rank": it.rank,
-                "title": it.title,
-                "link": it.link,
-            }
-            for it in items
-        ]
-    )
+    # 3) GPT로 카테고리 채우기 (category == None 이나 빈 값만 대상으로)
+    idx_list: list[int] = []
+    titles_for_gpt: list[str] = []
+
+    for idx, it in enumerate(items):
+        if not it.category:  # None 또는 빈 문자열
+            idx_list.append(idx)
+            titles_for_gpt.append(it.title)
+
+    if titles_for_gpt:
+        cats = categorize_news_titles_by_gpt(titles_for_gpt)
+        for idx, cat in zip(idx_list, cats):
+            items[idx].category = cat
+
+    # 4) DB 저장 (여기서도 한 번 더 rank == 1만 저장)
+    payload = [
+        {
+            "press": it.press,
+            "category": it.category,
+            "rank": it.rank,
+            "title": it.title,
+            "link": it.link,
+        }
+        for it in items
+        if it.rank == 1
+    ]
+
+    if not payload:
+        return 0
+
+    return save_naver_ranking_news(payload)
 
 
 def collect_and_save_naver_ranking() -> List[NaverRankingNewsItem]:
     """
     1) HTML 가져오고
     2) 파싱해서
-    3) 제목 기준 중복 제거 후 DB에 저장
+    3) rank 1만 필터 + 제목 기준 중복 제거 후 DB에 저장
     4) 최종 아이템 리스트 반환
     """
     html = fetch_naver_ranking_html()
     items = parse_naver_ranking(html)
     save_naver_ranking_to_db(items)
-    return items
+    # 반환도 rank 1 기준으로
+    return [it for it in items if it.rank == 1]

@@ -221,6 +221,7 @@ def save_naver_ranking_news(items: Iterable[Dict[str, Any]]) -> int:
     네이버 랭킹뉴스 목록을 naver_ranking_news 테이블에 저장.
     - 제목(title) 기준으로 UNIQUE.
     - 이미 같은 제목이 있으면 500 에러 대신 그냥 무시(삽입 안 함).
+    - 저장 시점에 기준으로 3일 이전 데이터는 먼저 삭제.
     """
     if pool is None:
         raise RuntimeError("Pool not initialized")
@@ -263,17 +264,56 @@ def save_naver_ranking_news(items: Iterable[Dict[str, Any]]) -> int:
     VALUES (%s,%s,%s,%s,%s,%s,%s)
     ON CONFLICT (title) DO NOTHING;
     """
-    # 만약 "머지"처럼 최신 rank/시간으로 갱신하고 싶으면 아래처럼도 가능:
-    # ON CONFLICT (title) DO UPDATE
-    #   SET rank = EXCLUDED.rank,
-    #       collected_at = EXCLUDED.collected_at,
-    #       link = EXCLUDED.link,
-    #       category = EXCLUDED.category,
-    #       raw_json = EXCLUDED.raw_json;
 
     with pool.connection() as conn:
         with conn.cursor() as cur:
+            # 🔹 먼저 3일 이전 데이터 삭제
+            cur.execute(
+                """
+                DELETE FROM naver_ranking_news
+                 WHERE collected_at < NOW() - INTERVAL '3 days'
+                """
+            )
+            # 🔹 그 다음 새 데이터 삽입
             cur.executemany(sql, rows)
         conn.commit()
 
     return len(rows)
+
+def get_top_news(category: str | None = None) -> Optional[Dict[str, Any]]:
+    """
+    24시간 내 최신뉴스 중 랜덤 1개 추출.
+    category 다중 입력 가능: "정치|경제|사회"
+    """
+    if pool is None:
+        raise RuntimeError("Pool not initialized")
+
+    # 기본 SQL
+    base_sql = """
+        SELECT id, press, rank, title
+          FROM naver_ranking_news
+         WHERE collected_at >= NOW() - INTERVAL '24 hours'
+    """
+
+    params = []
+
+    # 다중 카테고리 처리
+    if category:
+        cats = [c.strip() for c in category.split("|") if c.strip()]
+        if cats:
+            placeholders = ",".join(["%s"] * len(cats))
+            base_sql += f" AND category IN ({placeholders})"
+            params.extend(cats)
+
+    # 랜덤 순서
+    base_sql += """
+         ORDER BY RANDOM()
+         LIMIT 1;
+    """
+
+    with pool.connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(base_sql, params)
+            row = cur.fetchone()
+
+    return dict(row) if row else None
