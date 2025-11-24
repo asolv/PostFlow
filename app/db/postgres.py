@@ -1,3 +1,4 @@
+# app\db\postgres.py
 from __future__ import annotations
 from typing import Iterable, Dict, Any, Optional
 from datetime import datetime, timezone, timedelta
@@ -51,6 +52,17 @@ CREATE TABLE IF NOT EXISTS naver_ranking_news (
 CREATE INDEX IF NOT EXISTS idx_naver_ranking_collected_at ON naver_ranking_news (collected_at DESC);
 CREATE INDEX IF NOT EXISTS idx_naver_ranking_press        ON naver_ranking_news (press);
 CREATE INDEX IF NOT EXISTS idx_naver_ranking_title        ON naver_ranking_news (title);
+
+-- 사용자 테이블
+CREATE TABLE IF NOT EXISTS users (
+  username      TEXT PRIMARY KEY,
+  password_hash TEXT        NOT NULL,
+  expires_at    TIMESTAMPTZ NOT NULL,
+  is_active     BOOLEAN     NOT NULL DEFAULT TRUE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_expires_at ON users (expires_at);
 """
 
 def init_pool():
@@ -314,6 +326,55 @@ def get_top_news(category: str | None = None) -> Optional[Dict[str, Any]]:
     with pool.connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(base_sql, params)
+            row = cur.fetchone()
+
+    return dict(row) if row else None
+
+def create_user(
+    username: str,
+    password_hash: str,
+    expires_at: datetime,
+    is_active: bool = True,
+) -> None:
+    """
+    관리자/초기 세팅용: 사용자 1명 생성.
+    - username: 로그인 ID
+    - password_hash: 이미 해싱된 비밀번호
+    - expires_at: 권한 만료일(UTC 기준)
+    """
+    if pool is None:
+        raise RuntimeError("Pool not initialized")
+
+    sql = """
+    INSERT INTO users (username, password_hash, expires_at, is_active)
+    VALUES (%s, %s, %s, %s)
+    ON CONFLICT (username) DO UPDATE
+      SET password_hash = EXCLUDED.password_hash,
+          expires_at    = EXCLUDED.expires_at,
+          is_active     = EXCLUDED.is_active;
+    """
+    with pool.connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (username, password_hash, expires_at, is_active))
+        conn.commit()
+
+
+def get_user(username: str) -> Optional[Dict[str, Any]]:
+    """
+    username으로 사용자 1명 조회.
+    없으면 None.
+    """
+    if pool is None:
+        raise RuntimeError("Pool not initialized")
+
+    sql = """
+    SELECT username, password_hash, expires_at, is_active, created_at
+      FROM users
+     WHERE username = %s
+    """
+    with pool.connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(sql, (username,))
             row = cur.fetchone()
 
     return dict(row) if row else None

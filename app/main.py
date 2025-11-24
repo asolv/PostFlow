@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from app.core.cors import setup_cors
 from app.core.config import settings
 from app.api.v1.routers import rss as rss_router
+from app.api.v1.routers import auth as auth_router
+
 from app.db.postgres import init_pool, close_pool
 
 app = FastAPI(title=settings.APP_NAME, version="1.0.0")
@@ -17,6 +19,7 @@ def _shutdown():
 
 # API v1
 app.include_router(rss_router.router, prefix="/api/v1")
+app.include_router(auth_router.router)
 
 @app.get("/health")
 def health():

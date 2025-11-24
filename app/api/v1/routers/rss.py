@@ -16,8 +16,7 @@ from app.services.llm_service import generate_rss_feed_by_gpt
 from app.services.rss_service import build_rss_xml
 
 router = APIRouter(prefix="/rss", tags=["rss"])
-
-@router.get("/generate", summary="최신뉴스 기반 RSS 생성")
+@router.post("/generate", summary="최신뉴스 기반 RSS 생성")
 def generate_rss(
     keyword: str | None = Query(
         None,

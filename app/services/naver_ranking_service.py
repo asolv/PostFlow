@@ -58,11 +58,7 @@ def parse_naver_ranking(html: str) -> List[NaverRankingNewsItem]:
     """
     네이버 '언론사별 랭킹뉴스' 페이지 HTML을 파싱해서
     (언론사, 순위, 제목, 링크, 카테고리) 리스트를 반환.
-    - 언론사: strong.rankingnews_name
-    - 제목: a.list_title
-    - 링크: a.list_title 의 href
-    - 순위: em.list_ranking_num
-    - 카테고리: 링크의 sid/sid1 기반 추정 (없으면 None)
+    rank == 1 인 뉴스만 수집하도록 제한.
     """
     soup = BeautifulSoup(html, "lxml")
     items: List[NaverRankingNewsItem] = []
@@ -94,7 +90,9 @@ def parse_naver_ranking(html: str) -> List[NaverRankingNewsItem]:
                 rank = int(rank_el.get_text(strip=True)) if rank_el else None
             except Exception:
                 rank = None
-            if rank is None:
+
+            # ✅ rank=1만 저장
+            if rank != 1:
                 continue
 
             # 카테고리: 기사 링크에서 sid/sid1 추출 시도 (없으면 None)
@@ -111,6 +109,7 @@ def parse_naver_ranking(html: str) -> List[NaverRankingNewsItem]:
             )
 
     return items
+
 
 
 def _dedup_by_title(items: List[NaverRankingNewsItem]) -> List[NaverRankingNewsItem]:

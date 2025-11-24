@@ -9,3 +9,5 @@ openai
 orjson
 beautifulsoup4
 lxml
+passlib[bcrypt]
+python-jose[cryptography]
