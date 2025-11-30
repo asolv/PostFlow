@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     # 외부 키/엔드포인트
     SERPAPI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""   # ChatGPT 호출용 (필요 시 .env 에서 설정)
-    OPENAI_MODEL: str = "gpt-4o"
+    OPENAI_MODEL: str = "gpt-5-mini"
 
     # DB
     DATABASE_URL: str = ""

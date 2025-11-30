@@ -47,10 +47,6 @@ def generate_rss(
         30,
         description="연령대 (예: 20, 30, 40)"
     ),
-    contry_type: str | None = Query(
-        '대한민국',
-        description="국가/지역 정보"
-    ),
     sex: str | None = Query(
         '남성',
         description="성별"
@@ -59,20 +55,15 @@ def generate_rss(
         '유쾌한',
         description="말투/톤"
     ),
-    length: int | None = Query(
-        8000,
-        description="본문 목표 글자 수 (없으면 기본값 5000)"
-    ),
 ):
     if not keyword:
         row = get_top_news(category)
         keyword = row["title"] if row else "오늘의 주요 뉴스"
 
     ages = ages or 30
-    contry_type = contry_type or "대한민국"
-    sex = sex or "남성"
-    type = type or "진중한"
-    length = length or 5000
+    contry_type = "대한민국"
+    sex = sex or "여성"
+    type = type or "신중한"
 
     items = generate_rss_feed_by_gpt(
         keyword=keyword,
@@ -80,7 +71,6 @@ def generate_rss(
         contry_type=contry_type,
         sex=sex,
         type=type,
-        length=length,
     )
 
     xml_data = build_rss_xml([items])

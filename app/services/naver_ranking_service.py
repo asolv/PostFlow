@@ -91,8 +91,8 @@ def parse_naver_ranking(html: str) -> List[NaverRankingNewsItem]:
             except Exception:
                 rank = None
 
-            # ✅ rank=1만 저장
-            if rank != 1:
+            # ✅ rank 3까지만 저장
+            if rank > 3:
                 continue
 
             # 카테고리: 기사 링크에서 sid/sid1 추출 시도 (없으면 None)
@@ -140,8 +140,8 @@ def save_naver_ranking_to_db(items: List[NaverRankingNewsItem]) -> int:
     if not items:
         return 0
 
-    # 🔹 1위 기사만 남기기
-    items = [it for it in items if it.rank == 1]
+    # 🔹 3위까지 기사만 남기기
+    items = [it for it in items if it.rank <= 3]
     if not items:
         return 0
 
@@ -172,7 +172,7 @@ def save_naver_ranking_to_db(items: List[NaverRankingNewsItem]) -> int:
             "link": it.link,
         }
         for it in items
-        if it.rank == 1
+        if it.rank <=3
     ]
 
     if not payload:
